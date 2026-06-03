@@ -1,61 +1,37 @@
-
-import cv2
-import numpy as np
 import tensorflow as tf
+import os
+import numpy as np
 
-from tensorflow.keras.models import load_model
-from tensorflow.keras.applications.densenet import preprocess_input
+# Resolve path to the model file
+MODEL_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'model', 'pneumonia_model.keras')
 
-from exceptions.custom_exceptions import (
-    InvalidImageException,
-    ModelPredictionException
-)
+class PneumoniaModelService:
+    def __init__(self):
+        self.model = None
+        self._load_model()
 
-
-# Load DenseNet model once when server starts
-model = load_model(
-    "model/pneumonia_model.keras"
-)
-
-
-def predict_xray(image_path):
-
-    if not image_path:
-        raise InvalidImageException()
-
-    try:
-
-        # Read image
-        img = cv2.imread(image_path)
-
-        if img is None:
-            raise InvalidImageException()
-
-        # Resize to DenseNet input size
-        img = cv2.resize(img, (224, 224))
-
-        # DenseNet preprocessing
-        img = preprocess_input(img)
-
-        # Add batch dimension
-        img = np.expand_dims(img, axis=0)
-
-        # Model prediction
-        prediction = model.predict(img)
-
-        probability = float(prediction[0][0])
-
-        # Classification threshold
-        if probability > 0.5:
-            label = "PNEUMONIA"
+    def _load_model(self):
+        if os.path.exists(MODEL_PATH):
+            self.model = tf.keras.models.load_model(MODEL_PATH)
+            print("Successfully loaded pneumonia_model.keras")
         else:
-            label = "NORMAL"
+            print(f"Warning: Model not found at {MODEL_PATH}. Inference will fail until model is trained.")
 
-        confidence = round(probability * 100, 2)
+    def predict(self, preprocessed_image: np.ndarray) -> dict:
+        if self.model is None:
+            raise RuntimeError("Model is not loaded.")
+        
+        # Model returns a probability between 0 and 1
+        prediction = self.model.predict(preprocessed_image)[0][0]
+        
+        # Since we used sigmoid, closer to 1 is Pneumonia (based on Kaggle dataset folder structure)
+        is_pneumonia = bool(prediction > 0.5)
+        confidence = float(prediction) if is_pneumonia else float(1 - prediction)
+        
+        return {
+            "prediction": "Pneumonia" if is_pneumonia else "Normal",
+            "confidence": round(confidence * 100, 2)
+        }
 
-        return label, confidence
-
-    except Exception as e:
-        print("Prediction Error:", e)
-        raise ModelPredictionException()
-
+# Singleton instance to be used by the router
+model_service = PneumoniaModelService()

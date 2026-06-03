@@ -1,47 +1,40 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from passlib.context import CryptContext
-from schemas.user import RegisterRequest, LoginRequest
+import jwt
+import datetime
+
+from schemas.user import UserCreate, UserLogin
 from services.database_service import get_user_by_email, create_user
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+SECRET_KEY = "pneumovision_production_secret" # Use environment variable in real production
 
+def create_access_token(data: dict):
+    to_encode = data.copy()
+    expire = datetime.datetime.utcnow() + datetime.timedelta(hours=24)
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, SECRET_KEY, algorithm="HS256")
 
 @router.post("/register")
-def register(user: RegisterRequest):
-    if user.password != user.confirm_password:
-        raise HTTPException(status_code=400, detail="Passwords do not match")
-
+def register(user: UserCreate):
     existing_user = get_user_by_email(user.email)
     if existing_user:
-        raise HTTPException(status_code=409, detail="User already exists")
-
-    user_data = {
-        "name": user.name,
-        "age": user.age,
-        "gender": user.gender,
-        "email": user.email,
-        "phone": getattr(user,"phone",None),
-        "password_hash": pwd_context.hash(user.password),
-    }
-
-    created_user = create_user(user_data)
-    return {"message": "User registered successfully", "user": created_user}
-
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_password = pwd_context.hash(user.password)
+    create_user(user.name, user.email, hashed_password)
+    return {"message": "User registered successfully"}
 
 @router.post("/login")
-def login(user: LoginRequest):
+def login(user: UserLogin):
     db_user = get_user_by_email(user.email)
-    if not db_user:
+    if not db_user or not pwd_context.verify(user.password, db_user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    if not pwd_context.verify(user.password, db_user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
+    
+    access_token = create_access_token(data={"sub": db_user["email"]})
     return {
-        "message": "Login successful",
-        "user_id": db_user["user_id"],
-        "name": db_user["name"],
-        "email": db_user["email"],
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "user": {"name": db_user["name"], "email": db_user["email"]}
     }

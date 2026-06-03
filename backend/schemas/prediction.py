@@ -1,14 +1,14 @@
 from pydantic import BaseModel
-from typing import Optional
-
-class PredictionCreate(BaseModel):
-    user_id: str
-    image_url: str
-    prediction: str
-    confidence: float
-
+from datetime import datetime
 
 class PredictionResponse(BaseModel):
     prediction: str
     confidence: float
-    image_url: Optional[str] = None
+    explanation: str
+
+class HistoryItem(BaseModel):
+    id: int
+    created_at: datetime
+    prediction: str
+    confidence: float
+    file_name: str

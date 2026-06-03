@@ -1,14 +1,14 @@
 // Root App component: defines all routes and wraps authenticated pages with layout
 import { Routes, Route, Navigate } from 'react-router-dom'
-import './App.css'
 
-import Login from './pages/Login'
-import Register from './pages/Register'
-import Dashboard from './pages/Dashboard'
-import UploadScan from './pages/UploadScan'
-import Result from './pages/Result'
-import History from './pages/History'
-import Profile from './pages/Profile'
+// CRITICAL FIX: Vite requires explicit .jsx extensions for these relative imports
+import Login from './pages/Login.jsx'
+import Register from './pages/Register.jsx'
+import Dashboard from './pages/Dashboard.jsx'
+import UploadScan from './pages/UploadScan.jsx'
+import Result from './pages/Result.jsx'
+import History from './pages/History.jsx'
+import Profile from './pages/Profile.jsx'
 
 function PrivateRoute({ children }) {
   const token = localStorage.getItem('pv_token')

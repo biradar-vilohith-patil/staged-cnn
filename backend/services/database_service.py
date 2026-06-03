@@ -1,68 +1,42 @@
 import os
-from dotenv import load_dotenv
 from supabase import create_client, Client
+from dotenv import load_dotenv
 
+# Load variables from the .env file
 load_dotenv()
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in .env")
+    raise ValueError("Missing Supabase credentials. Check your backend/.env file.")
 
+# Initialize the Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+def create_user(name: str, email: str, password_hash: str):
+    response = supabase.table('users').insert({
+        "name": name, 
+        "email": email, 
+        "password_hash": password_hash
+    }).execute()
+    return response.data
 
 def get_user_by_email(email: str):
-    response = (
-        supabase.table("users")
-        .select("*")
-        .eq("email", email)
-        .limit(1)
-        .execute()
-    )
-    data = response.data
-    return data[0] if data else None
+    response = supabase.table('users').select("*").eq("email", email).execute()
+    # Return the first user found, or None if no user exists
+    return response.data[0] if response.data else None
 
+def save_scan_history(user_email: str, file_name: str, prediction: str, confidence: float):
+    response = supabase.table('history').insert({
+        "user_email": user_email,
+        "file_name": file_name,
+        "prediction": prediction,
+        "confidence": confidence
+    }).execute()
+    return response.data
 
-def get_user_by_id(user_id: str):
-    response = (
-        supabase.table("users")
-        .select("*")
-        .eq("user_id", user_id)
-        .limit(1)
-        .execute()
-    )
-    data = response.data
-    return data[0] if data else None
-
-
-def create_user(user_data: dict):
-    response = (
-        supabase.table("users")
-        .insert(user_data)
-        .execute()
-    )
-    data = response.data
-    return data[0] if data else None
-
-
-def create_scan(scan_data: dict):
-    response = (
-        supabase.table("scans")
-        .insert(scan_data)
-        .execute()
-    )
-    data = response.data
-    return data[0] if data else None
-
-
-def get_scans_by_user_id(user_id: str):
-    response = (
-        supabase.table("scans")
-        .select("*")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .execute()
-    )
-    return response.data or []
+def get_user_history(user_email: str):
+    # Fetch history and order by newest first
+    response = supabase.table('history').select("*").eq("user_email", user_email).order("created_at", desc=True).execute()
+    return response.data
